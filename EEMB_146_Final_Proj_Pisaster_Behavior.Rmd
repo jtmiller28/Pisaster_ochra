@@ -1,0 +1,320 @@
+---
+title: "Sea Star Intraspecific Competition Modifies Feeding Behavior"
+author: "JT_Miller"
+date: "5/31/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r data and libraries, include = FALSE}
+library(car)
+library(ggplot2)
+library(readr)
+library(tidyverse)
+library(psych) 
+library(knitr) 
+library(nlme)
+library(MASS)
+library(bookdown)
+
+speed <- read.csv("Sea_Star_Pairings_for_BHV_groups.csv")
+speed1<- speed[c("Sea.Star.ID", "Color", "Arm.Length", "Latency.to.Approach", "Treatment" )] #Looking at just the columns of interest for the purposes of this study.
+speed_1 <- subset(speed1, speed1$Sea.Star.ID != "Richon_18") #Omit the 20th sea star since there was an error in the treatement referenced from the paper.
+speed_1$Latency.to.Approach.log <- log(speed_1$Latency.to.Approach) #Log Transformation of the Latency to approach column
+
+```
+
+## Abstract
+This analysis is motivated by the interest in looking at whether the the time it takes for a *Pisaster ochraceus* sea star to begin approaching a mussel prey item can be influenced by traits of the sea star and presence of intraspecific competition.The data examined is composed of two categorical variables and two quantitative variables randomly sampled. The data was assessed first using a two sample t-test on the time it takes for the sea star to begin approaching with and without a competing sea star present, as well as using a multilinear regression model to look at how accurate the intraspecific competition, arm length, and phenotype of the sea star can predict the the time it would take to approach the mussel. It was found that the presence of another sea star feeding on the mussel does significantly effect the time it takes for the other sea star to approach. It was also found that intraspecific competition and arm length are good predictors of the approach time, but phenotype is not.
+
+## Introduction
+
+This dataset comes from a study conducted at University of Santa Barbara looking at whether modeling behavior hypervolumes could predict outcomes of predator-predator mediated interactions (Pruitt et al. 2017). The sea stars from the species *Pisaster ochraceus* were randomly collected along the beaches of Santa Barbara.  They were then cataloged and IDed through measurements of their arm length and their color (phenotype). The sea stars were assessed for what the researchers termed as personality by looking at behavior in their movement to the right and left as well as activity level of the individual sea star. Using this information the researchers than established a 3-D model that took these parameters into account. These sea stars were then placed in tanks with a mussel present, and the treatment of whether or not a competing sea star was already present feeding on the mussel. The latency to approach was then measured for how long it would take for the introduced sea star to begin approaching the competing sea star for the food source. The researchers then measured their 3-D model of the sea star personality against the treatment type to better understand whether intraspecific competition influences other sea stars. 
+
+The researchers for this study used the "personality" of the sea star determined by several levels of activity responses to measure whether intraspecific competition significantly affected each sea star. The purpose of this study however is to look at whether the time it takes for *Pisaster ochraceus* sea stars to begin approaching the mussel food items may be affected by intraspecific competition, arm length, and phenotype of the sea star. To do this we'll be examining the hypotheses of looking at if the means between the the time it takes for the sea star to begin approaching the mussel are different. We will then conduct a multiregression analysis to understand if intraspecific competition, arm length, and phenotype can provide some predictability in how fast the sea star reacts to the mussel.Using this information may help to establish some more generalities among *Pisaster ochracues* interactions in the Santa Barbara intertidal. 
+
+## Exploratory Data Analysis
+The numeric variable, latency to approach and arm length were examined for normality using histograms (fig 1). The original Latency to approach data appeared non-normal with a heavy right skew, therefore a log transformation was preformed to correct this. The arm length data came out slightly bimodal, however a shapiro test (Appendix Exploratory Data Analysis) indicated that the overall trend was still normal. Boxplots were then created to show how the categorical variables, phenotype and predator treatment, effected the latency to approach. The first boxplot (fig 2) shows the difference in the time it would take for the sea star to approach the mussel depending on the treatment where a competing sea star was present or absent. The second boxplot (fig 2) was used to indicate the difference in the time it would take for the sea star to approach depending on the phenotype (color) of the sea star. 
+Histograms and linear relationships
+
+
+```{r warnings=FALSE, fig.show="hold", echo=FALSE, output=FALSE, fig.cap="Figure #1: Histograms for the time it takes for the sea star to begin approaching the mussel. Note that a log transformation was preformed to fix the right skew"}
+
+par(mfrow=c(1,1))
+hist(speed_1$Latency.to.Approach,col='darkgray',
+     xlab="Latency to Approach (s)", 
+     ylab="Frequency",
+     main="Histogram of Latency to Approach ")
+
+hist(speed_1$Latency.to.Approach.log,col='darkgray',
+     xlab="Log Transformed Latency to Approach (s)", 
+     ylab="Frequency",
+     main="Histogram of Log transformed Latency to Approach ")
+hist(speed_1$Arm.Length, col ='darkgray',
+     xlab="Arm Length (cm)", 
+     ylab="Frequency",
+     main="Histogram of Arm Length ")
+
+```
+
+## Boxplots
+The boxplot for the competition treatment (figure 1) appear to have a higher median of response time, possibly indicating that the sea star would react slower to the mussel if another sea star present on it. The boxplot for the phenotype treatment (figure 1) shows that there isn't a difference in the median response times between the sea stars. One important note here however is that the purple sea stars seem to have a lower variance in their response times. 
+```{r warnings=FALSE, fig.show="hold", echo=FALSE, output=FALSE, fig.cap="Figure #2: Boxplots of the change in the log transformed time to takes for the sea star to approach the mussel by competition treatement and phenotype. For competition the interaction was based upon whether a competing sea star was present on the mussel in the tank when the new sea star was introduced.  For the phenotype there was 3 variations in colors of sea stars identified."}
+par(mfrow=c(1,1))
+boxplot(speed_1$Latency.to.Approach.log ~ speed_1$Treatment, xlab = "Competition Treatment", ylab = "Log of Latency to Approach (s)")
+boxplot(speed_1$Latency.to.Approach.log ~ speed_1$Color, xlab= "Phenotype(color)", ylab = "Log of Latency to Approach (s)")
+
+```
+
+## Statistical Methods
+### Two Sample T-Test
+A two sample t-test is a statistical test used to compare the means of two groups.  The two sample T-test will allow me to analyze whether the means of the time it takes for *Pisaster ochraceus* sea stars to approach differs by the presence of a competing sea star. 
+
+The assumptions for this test are that the data for each group is normal, the variances for both samples are equal, and the group is randomly sampled. The variance can be assessed by graphing the residuals which show the deviation between the data. The equality of the variances can also be measured using the Levene's test to compare both groups variance. 
+
+First normality was checked for each treatment type of competitor interacting and not interacting using qqPlots and shapiro tests for normality (Appendix T-test). Once this had been confirmed, the equality and normality of the residuals were both assessed on the log transformed latency to approach data, the levene's test P value obtained was non significant (0.6137) indicating the variances are equal. a qqPlot was also used to assess the normality of the residuals which appeared to be normal. The random sampling criteria was also met since these sea stars were randomly assigned to treatment groups.
+
+The null hypothesis for this two sample t-test would be that the log transformed means of the time it takes for the sea star to begin approach are equal between the treatments of the competing sea star being present or absent. The alternative hypothesis would be that the log transformed means of the time it takes for the sea star to begin approach are not equal between the treatments of the competing sea star being present or absent. 
+
+
+
+### Multiple Regression (ANCOVA)
+Multiple regression analysis is used in order to see if the addition of multiple predictors can help explain the variability in the response variable of the model. This analysis will allow me to assess whether presence of a competing sea star, sea star arm length, and phenotype are good predictors of the time it takes for a sea star to begin approaching a mussel. 
+
+The assumptions of multiple regression are that there is no collinearity between predictors, there is some linear relationship between predictors and response, the residuals of the model are normal, and the residuals of the model have equal variance. 
+
+The assumptions of the absence of collinearity between predictors and a linear relationship present between the predictors and response are analyzed in fig #3 using the par function. There doesn't appear to be any correlation values that surpass 0.7, therefore it can be said that none of of the predictors suggest collinearity. Note that the 0.96 measurement found in the figure is between the non-transformed and transformed data, which is not applicable to be used as a predictor. The predictors also appear to have weak but present linear relationships with the outcome log transformed variable latency to approach. The assumptions of normal and equal variance were measured by qqplot and plotting them (Appendix Multi Regression Analysis). For all three models created it appears that the variances are equally distributed above and below, as well as the qqPlots look normal. 
+
+
+The assessment made to judge what linear regression model works best to predict the log transformed time it takes for the sea star to approach is calculated using AIC and BIC comparison scores. The lower the AIC and BIC, the more simple and better predictability the model will offer. It is also important to note the adjusted r squared value provides information on how much relative predictability these models offer, so it should also be taken into account when choosing the model. 
+
+The null hypothesis for linear regression is that the slope of the regression line is 0, and the null would be that the slope of the regression line is not zero. 
+
+
+Note: random/block effects were not used in this modeling due to the usage of a unique sea star per test. 
+```{r warnings=FALSE, fig.show="hold", echo=FALSE, output=FALSE, fig.cap=" Figure #3: Histograms and linear trends for each variable in relation to one another. The Latency to approach data was transformed using a log transformation in order to reach normality. The variables do not have any high values (>0.70) to suggest colinearity, so it can be noted that none of the variables explain eachother. Note: The 0.96 value is the comparison of the nontransformed latency to approach data agaisnt the log transformed latency to approach data therefore we will ignore it in terms of colinearity. "}
+
+pairs.panels(speed_1, lm = TRUE, cor = T)
+```
+
+## Results
+
+### Two Sample T-test
+
+The two sample t-test yields one p-value which is compared to an alpha value of 0.05. P-values > 0.05 are considered non significant, while P-values < 0.05 are considered significant in the difference between the means of the two groups. 
+
+The two sample t-test ran on the log transformed data of the latency to approach for the sea star according to whether a competing sea star was present or absent yielded a p-value of 0.01839. This suggests we should reject the null hypothesis and conclude that the presence of a competing sea star does have a significant effect on the time it takes for the sea star to begin approaching. The confidence interval for this test is 0.1025408-0.9717233.
+
+
+### Multiple Regression Analysis
+
+The multiple regression analysis looks at what variables present make good predictors for our model while maintaining generality. 
+
+First, the stepAIC function (see Appendix: Multiregression Analysis) was used to find the relative level of predictive value each variable in the model offered. This output measured in AIC models, and gave an output from greatest to least predictive value of competitor presence, arm length, and color. This information was than used to construct the linear models to predict the log of latency to approach.
+
+Next the models were constructed where model 1 contained just competitor treatment, model 2 contained competitor treatment and arm length, and model 3 contained competitor treatment, arm length, and phenotype. After constructing the models and running both AIC and BIC comparisons on them, the best model for providing information of predictability of latency to approach for sea stars was model number 2 which accounted for the presence of the competitor and arm length of the sea star. Both the AIC and BIC scores were the lowest overall in this model (AIC = 25.23, BIC = 29.01) as well as having the highest adjusted r squared value (0.35)
+
+Our linear regression model is said to be predictive of the output variable if the slope of the regression line is not zero. Here the p-value of the linear model is compared to the alpha value of 0.05. P-values > 0.05 are considered to not be significant, in that the slope of the regression line is 0. P-values < 0.05 are considered significant, in that the slope of the regression line is not zero giving the model some form of predictive value. 
+
+Linear model number 2 then was looked at with the summary function to determine whether we could reject our null hypothesis. The output p-value for the whole model was significant (0.012) leading us to reject the null, the slope of the regression line for this model is not zero. Interestingly looking at the model's p-values showed that treatment was a significant predictor (p-value = 0.00792), while arm length was not a significant predictor though very close (p-value = 0.06774). Again the adjusted r squared value shows a weak positive relationship (0.35)
+
+This model was then further assessed through selecting 15 random rows of latency to approach data from the dataset and comparing a prediction plot based upon model number 2. This prediction plot isn't perfect, but seems to follow the general trend in an average manner. The low level predictability can be explained by the r squared value being 0.35.
+
+```{r warnings=FALSE, fig.show="hold", echo=FALSE, output=FALSE, fig.cap=" Figure #4: The AIC and BIC comparison table for the models. Model one is fit_var1 with only treatment as a predictor. Model two is fit_var2 with treatment and arm length as predictors. Model three is fit_full_var with treatment, arm length, and phenotype as predictors "}
+
+fit_1var <- lm(Latency.to.Approach.log ~ Treatment, data = speed_1)
+#stepAIC mass? package
+
+fit_2var <- lm(Latency.to.Approach.log ~ Treatment + Arm.Length, data = speed_1)
+
+fit_full_var <- lm(Latency.to.Approach.log ~ Treatment + Arm.Length + Color, data = speed_1)
+
+mixed_effects <- lme(Latency.to.Approach.log ~ Treatment, random = ~1|Sea.Star.ID, data = speed_1)
+
+
+
+
+result_sp <- AIC(fit_1var,fit_2var, fit_full_var) #this will create a dataframe whose rownames are the models, with columns for the df and AIC of each model
+
+#add other metrics to your table
+models <- list(fit_1var,fit_2var, fit_full_var) #make sure you keep your models in the same order here as they were when you created your results table
+result_sp$BIC <- sapply(models, BIC) #add a column for BIC to the results
+
+model_summary <- lapply(models, summary) 
+
+#now we will use a for loop to easily extract the R^2 and adj R^2 value for each model from its summary, and store them in new columns in the results table
+
+for(i in 1:length(models)){ #this creates a variable i that starts with the value i=1
+  result_sp$rsq[i] <- model_summary[[i]]$r.squared #we assign the rsq value from model i to the i'th row of the column 'rsq' in the table 'results'
+  result_sp$adj_rsq[i] <- model_summary[[i]]$adj.r.squared #same for adjusted rsq
+} #now we go back to the beginning of the for-loop, add 1 to the value of i, and do everything again
+
+
+kable(result_sp, digits = 2, align = "c")
+
+
+```
+
+
+```{r warnings=FALSE, fig.show="hold", echo=FALSE, output=FALSE, fig.cap=" Figure #4:The AIC and BIC comparison table for the models. Model one is fit_var1 with only treatment as a predictor. Model two is fit_var2 with treatment and arm length as predictors. Model three is fit_full_var with treatment, arm length, and phenotype as predictors. Next the first 15 random rows from the data set were taken and plotted for latency to approach (black dots). Model #2 was then used to predict 15 points based on the variables of competitor treatment and arm length. The model follows the general trend, but isn't highly predictive. "}
+
+###Checking how well the model works###
+splitter <- sample(1:nrow(speed_1), 15, replace = F) #pick 15 random rows from speed_1 to reserve as test data
+psub_train <- speed_1[-splitter,] #leave those rows out of the training data
+psub_test <- speed_1[splitter,] #use them to create a set of test data
+
+fit_2var_split <- lm(Latency.to.Approach.log ~ Treatment +Arm.Length, 
+               data = speed_1)
+prediction <- predict(fit_2var_split, speed_1)
+plot(psub_test$Latency.to.Approach.log, pch=1) #plot the actual test data values
+points(prediction, pch=20, col = "red")
+```
+
+## Discussion
+The results from the two sample t-test demonstrates that the presence of a competing sea star already on the mussel significantly effects the time it takes for the introduced sea star to begin approaching the mussel. This result suggests that there is a mechanism to allow for the sea star to be aware of another sea star's presence, as well as that possible competition can have a detrimental effect on the sea star. Previous research shows that aggressive behaviors of cannibalism can occur between sea stars competing over food sources (Menge J. and Menge B. 1974). 
+
+The multiple regression analysis suggested that the presence of a competing sea star and arm length of the introduced sea star are the best predictors for latency of approach in the variables assessed, while phenotype of the sea star does not add any predictive value for latency to approach. It should be noted however that it appears that arm length itself is not a significant predictor of the sea stars reaction time. Previous studies have shown that the size between species can have an effect on competition between sea stars (Rogers et al. 2018), however competition between sea stars of the same species and how size effects seems to be missing in the literature. Further research is needed to assess how size of a sea star of the same species can influence its competitive behaviors. 
+
+There are many limitations to this analysis. The first being applying this to the general population of sea stars since these *Pisaster ochraceus* were obtained in Santa Barbara exclusively, possibly narrowing the scope of how behavior can be assessed here. Another limitation is presented by the narrowing of the population of *Pisaster ochraceus* due to sea star wasting disease decimating the population along the pacific coast. This could effect the overall generality of the analyses since 1) the sampling pool had to be small and 2) the survivors may have different behavioral patterns when compared to the larger population before SSWD. Given enough time and resources, I would want to run this test again upon a wider and larger range of sampling across the pacific coast as well as increasing the number of predictors measured to see if a better linear model for prediction could be created. 
+
+The main take away from this study is that the presence of other sea stars on prey items can effect their feeding behavior, and this can also be changed by traits of that individual sea star such as arm length. 
+
+## References
+
+Menge J., Menge B. 1974. Role of Resource Allocation, Aggression and spatial Heterogeneity in Coexistence of Two Competing Intertidal Starfish. Ecological Monographs. 44: 189-209.
+
+Pruitt J., Howell K., Gladney S., Yang Y., Lichtenstein J., Spicer M., Echeverri S., Pinter-Wollman N. 2017. Behavioral Hypervolumes of Predator Groups and Predator-Predator interactions Shape Prey Survival Rates and Selection on Prey Behavior. American Naturalist. 189: 254-266.
+
+```{r}
+citation("car")
+citation("ggplot2")
+citation("readr")
+citation("tidyverse")
+citation("psych") 
+citation("knitr") 
+citation("nlme")
+citation("MASS")
+citation("bookdown")
+```
+
+## Appendix
+
+### Exploratory Data Analysis
+```{r}
+par(mfrow=c(1,1))
+hist(speed_1$Latency.to.Approach, main ="", xlab = "Latency to approach")
+hist(speed_1$Latency.to.Approach.log, main ="", xlab = "Latency to approach Log")
+hist(speed_1$Arm.Length, main= "", xlab = "Arm length")
+```
+
+```{r}
+shapiro.test(speed_1$Latency.to.Approach.log) #Normal!
+shapiro.test(speed_1$Arm.Length) #Really close but technically normal?
+```
+
+```{r}
+qqPlot(speed_1$Latency.to.Approach.log) #Looks pretty normal!
+qqPlot(speed_1$Arm.Length) #Looks pretty normal!
+```
+
+```{r}
+pairs.panels(speed_1, lm = TRUE, cor = T) #Looks like the there isnt any colinear relationships 
+```
+
+```{r}
+par(mfrow=c(1,1))
+boxplot(speed_1$Latency.to.Approach.log ~ speed_1$Treatment, xlab = "Competition Treatment", ylab = "Log of Latency to Approach (s)")
+boxplot(speed_1$Latency.to.Approach.log ~ speed_1$Color, xlab= "Phenotype(color)", ylab = "Log of Latency to Approach (s)")
+```
+
+# Statistical Methods
+
+## Two Sample T-test
+```{r}
+
+#Two Sample T-test
+
+fit_t <- lm(Latency.to.Approach.log~Treatment,data=speed_1) #run a linear model. lm(y~x) fits the equation y=mx+b
+res_t=fit_t$residuals #retrieve the residuals from the model
+
+
+
+shapiro.test(res_t) #p > 0.05 so we cannot reject the null; suggests that the data are normal
+qqPlot(res_t) #Looks pretty normal!
+hist(res_t)
+plot(fit_t)
+#Just to check each individual treatment for normality 
+qqPlot(speed_1$Latency.to.Approach.log[speed_1$Treatment == "Predator Interacting"]) #Normal
+shapiro.test(speed_1$Latency.to.Approach.log[speed_1$Treatment == "Predator Interacting"]) #Normal
+qqPlot(speed_1$Latency.to.Approach.log[speed_1$Treatment == "Predator Noninteracting"]) #Normal
+shapiro.test(speed_1$Latency.to.Approach.log[speed_1$Treatment == "Predator Noninteracting"]) #very Normal
+
+t.test(speed_1$Latency.to.Approach.log ~ speed_1$Treatment, var.equal = TRUE) #Reject the null, the means are different.
+```
+
+## Multi Regression Analysis
+```{r}
+
+fit_1var <- lm(Latency.to.Approach.log ~ Treatment, data = speed_1)
+#stepAIC mass? package
+
+fit_2var <- lm(Latency.to.Approach.log ~ Treatment + Arm.Length, data = speed_1)
+
+fit_full_var <- lm(Latency.to.Approach.log ~ Treatment + Arm.Length + Color, data = speed_1)
+
+mixed_effects <- lme(Latency.to.Approach.log ~ Treatment, random = ~1|Sea.Star.ID, data = speed_1) #Maybe don't have this since none of these are repeated
+
+```
+
+```{r}
+MultiLinearReg <- lm(Latency.to.Approach.log ~ Treatment + Arm.Length + Color , data = speed_1)
+stepAIC(MultiLinearReg, direction = "both") 
+```
+
+```{r}
+plot(fit_1var)
+plot(fit_2var)
+plot(fit_full_var)
+#Variance appears to be equal and the qqplots all look fine
+```
+```{r}
+result_sp <- AIC(fit_1var,fit_2var, fit_full_var) #this will create a dataframe whose rownames are the models, with columns for the df and AIC of each model
+
+#add other metrics to your table
+models <- list(fit_1var,fit_2var, fit_full_var) #make sure you keep your models in the same order here as they were when you created your results table
+result_sp$BIC <- sapply(models, BIC) #add a column for BIC to the results
+
+model_summary <- lapply(models, summary) 
+
+#now we will use a for loop to easily extract the R^2 and adj R^2 value for each model from its summary, and store them in new columns in the results table
+
+for(i in 1:length(models)){ #this creates a variable i that starts with the value i=1
+  result_sp$rsq[i] <- model_summary[[i]]$r.squared #we assign the rsq value from model i to the i'th row of the column 'rsq' in the table 'results'
+  result_sp$adj_rsq[i] <- model_summary[[i]]$adj.r.squared #same for adjusted rsq
+} #now we go back to the beginning of the for-loop, add 1 to the value of i, and do everything again
+
+
+kable(result_sp, digits = 2, align = "c")
+
+```
+
+```{r}
+summary(fit_2var) #The competitor treatement appears to be significant (0.00792), however the arm length does not (0.06774). The adjusted r^2 value is 0.35 here and the overall p-value is significant (0.012)
+```
+
+```{r}
+
+###Checking how well the model works###
+splitter <- sample(1:nrow(speed_1), 15, replace = F) #pick 15 random rows from speed_1 to reserve as test data
+psub_train <- speed_1[-splitter,] #leave those rows out of the training data
+psub_test <- speed_1[splitter,] #use them to create a set of test data
+
+fit_2var_split <- lm(Latency.to.Approach.log ~ Treatment +Arm.Length, 
+               data = speed_1)
+prediction <- predict(fit_2var_split, speed_1)
+plot(psub_test$Latency.to.Approach.log, pch=1) #plot the actual test data values
+points(prediction, pch=20, col = "red")
+```
